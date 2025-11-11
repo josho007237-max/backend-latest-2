@@ -1,4 +1,4 @@
-# --- Node/General ---
+# Node/General
 node_modules/
 dist/
 build/
@@ -6,16 +6,15 @@ coverage/
 *.log
 .vscode/
 .idea/
+*.tsbuildinfo
 
-# --- Prisma / DB ---
+# Prisma / DB
 prisma/*.db
 prisma/*.db-journal
-!prisma/migrations/**   # เก็บไฟล์ migrations ได้
+!prisma/migrations/**
 
-# --- Env secrets ---
+# Env secrets
 .env
 .env.local
 .env.*.local
-!.env.example          # อนุญาตไฟล์ตัวอย่าง
-
-*.tsbuildinfo
+!.env.example
