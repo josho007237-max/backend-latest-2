@@ -1,0 +1,20 @@
+// POST /admin/ai/presets
+router.post("/", async (req, res) => {
+  const tenant = getTenant(req);
+  const input = SavePreset.parse(req.body);
+  try {
+    const item = await prisma.aiPreset.create({
+      data: { tenant, ...input },
+    });
+    return res.json({ ok: true, item, existed: false });
+  } catch (e: any) {
+    if (e?.code === "P2002") { // unique (tenant,name)
+      const item = await prisma.aiPreset.findFirst({
+        where: { tenant, name: input.name },
+      });
+      return res.status(200).json({ ok: true, item, existed: true });
+    }
+    console.error("[POST /admin/ai/presets]", e);
+    return res.status(400).json({ ok: false, message: "invalid_input" });
+  }
+});

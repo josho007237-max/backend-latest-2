@@ -1,0 +1,17 @@
+node_modules/
+npm-debug.log*
+yarn.lock
+pnpm-lock.yaml
+
+dist/
+.cache/
+.vscode/
+
+# Prisma & DB (สำคัญ)
+prisma/*.db
+prisma/*.db-journal
+
+# Env (ความลับ)
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,159 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // เปลี่ยนเป็น "postgresql" ภายหลังได้
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ====================== Core Models ======================
+ */
+
+model AdminUser {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Bot {
+  id         String    @id @default(cuid())
+  tenant     String
+  name       String
+  platform   String    @default("line")
+  active     Boolean   @default(true)
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  // Relations
+  secrets        BotSecret?
+  config         BotConfig?
+  cases          CaseItem[]
+  stats          StatDaily[]
+  knowledgeLinks BotKnowledge[] // many-to-many ผ่านตารางกลาง
+
+  @@unique([tenant, name])
+}
+
+model BotConfig {
+  id    String @id @default(cuid())
+  botId String @unique
+
+  // เลือก preset แล้ว override เพิ่มได้
+  presetId String?
+  preset   AiPreset? @relation(fields: [presetId], references: [id])
+
+  // NOTE: ให้ตรงกับฝั่งโค้ด admin (ใช้ field ชื่อ 'model')
+  model        String @default("gpt-4o-mini")
+  systemPrompt String @default("")
+  temperature  Float  @default(0.3)
+  topP         Float  @default(1)
+  maxTokens    Int    @default(800)
+
+  updatedAt DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+}
+
+model BotSecret {
+  id    String @id @default(cuid())
+  botId String @unique
+
+  // LINE
+  channelSecret      String?
+  channelAccessToken String?
+
+  // OpenAI (ลับเฉพาะบอท)
+  openaiApiKey String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+}
+
+model CaseItem {
+  id        String   @id @default(cuid())
+  botId     String
+  userId    String?
+  text      String
+  kind      String
+  meta      Json? // เก็บข้อมูลเสริมของเคส
+  createdAt DateTime @default(now())
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  @@index([botId, createdAt])
+}
+
+model StatDaily {
+  id        String   @id @default(cuid())
+  botId     String
+  dateKey   String
+  total     Int      @default(0)
+  text      Int      @default(0)
+  follow    Int      @default(0)
+  unfollow  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bot Bot @relation(fields: [botId], references: [id], onDelete: Cascade)
+
+  // สำหรับ upsert: where: { botId_dateKey: { botId, dateKey } }
+  @@unique([botId, dateKey], name: "botId_dateKey")
+}
+
+/**
+ * ====================== AI Presets & Knowledge ======================
+ */
+
+// Preset ค่ามาตรฐานของ AI ต่อ tenant
+model AiPreset {
+  id           String   @id @default(cuid())
+  tenant       String
+  name         String
+  model        String   @default("gpt-4o-mini")
+  temperature  Float    @default(0.3)
+  topP         Float    @default(1)
+  maxTokens    Int      @default(800)
+  systemPrompt String   @default("")
+  toolsJson    Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  configs BotConfig[] // BotConfig หลายตัวสามารถชี้ preset เดียวกันได้
+
+  @@unique([tenant, name])
+}
+
+// เอกสารความรู้ (ข่าวสาร/FAQ/โน้ต) ต่อ tenant
+model KnowledgeDoc {
+  id        String   @id @default(cuid())
+  tenant    String
+  title     String
+  tags      String?
+  body      String
+  status    String   @default("active") // active/draft/archived ก็ใช้ได้ (โค้ดรองรับ)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  bots BotKnowledge[]
+}
+
+// ตารางกลางผูกเอกสารความรู้เข้ากับบอท (Many-to-Many)
+model BotKnowledge {
+  botId     String
+  docId     String
+  createdAt DateTime @default(now())
+
+  bot Bot          @relation(fields: [botId], references: [id], onDelete: Cascade)
+  doc KnowledgeDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+
+  // สำหรับ upsert: where: { botId_docId: { botId, docId } }
+  @@unique([botId, docId], name: "botId_docId")
+}
